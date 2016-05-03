@@ -1,0 +1,3 @@
+configuration-registry
+consul-service-discovery
+click

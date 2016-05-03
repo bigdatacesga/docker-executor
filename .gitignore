@@ -1,0 +1,12 @@
+venv
+*.pyc
+*.pyo
+*.egg-ignore
+*.egg-info
+*.egg
+*.log
+dist
+build
+docs/_build
+.tox
+.coverage
