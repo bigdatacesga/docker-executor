@@ -1,5 +1,6 @@
 import os
 import subprocess
+import re
 import consul
 import registry
 
@@ -11,21 +12,29 @@ def run(nodedn):
     Information retrieved from the registry:
 
         node.name
-        nade.image
+        node.docker_image
         node.docker_opts
         node.disks
         node.networks
+        node.tags
     
-    bridge = network.bridge
-    device = network.device
-    address = network.address
-    netmask = network.netmask
-    gateway = network.gateway
+        bridge = network.bridge
+        device = network.device
+        address = network.address
+        netmask = network.netmask
+        gateway = network.gateway
+
+        /service REST endpoint should return:
+        service.docker_image
+        service.docker_opts
     """
     node = registry.Node(nodedn)
-    container_name = node.name
-    container_image = node.image
+
+    container_name = '{0}-{1}'.format(node.clustername, node.name)
+    container_image = node.docker_image
     docker_opts = node.docker_opts
+    service = node.clustername
+    tags = node.tags
     disks = node.disks
     networks = node.networks
 
@@ -35,8 +44,9 @@ def run(nodedn):
     run('docker run {opts} {volumes} -h {name} --name {name} {image}'.format(
         name=container_name, opts=opts, volumes=volumes, image=container_image))
     add_network_connectivity(container_name, networks)
-    register_in_consul(id=container_name, name=SERVICE,
-                       address=networks['private']['address'], check='SSH')
+    register_in_consul(container_name, name=service,
+                       address=networks['private']['address'],
+                       tags=tags, check='SSH')
 
 
 def generate_volume_opts(disks):
@@ -72,14 +82,17 @@ def add_network_connectivity(container_name, networks):
 
 
 def add_network_interface(container_name, network):
-    """Adds one network interface using pipework"""
-    bridge = network.bridge
+    """Adds one network interface using pipework
+
+    TODO: If not address is specified obtain one from the network service
+    """
     device = network.device
+    bridge = network.bridge
     address = network.address
     netmask = network.netmask
     gateway = network.gateway
 
-    if gateway is not '':
+    if re.search(r'^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$', gateway):
         subprocess.call(
             'pipework {bridge} -i {device} {name} {ip}/{mask}@{gateway}'
             .format(bridge=bridge, device=device, name=container_name,
@@ -102,10 +115,11 @@ def add_network_interface(container_name, network):
     #            gateway=networks['gateway']))
 
 
-def register_in_consul(id, name, address, check=None):
+def register_in_consul(container_name, service_name, address, tags=None, check=None):
     """Register the docker container in consul service discovery"""
     sd = consul.Client()
     if check == 'SSH':
-        check = {'id': id, 'name': 'SSH', 'tcp': '{}:{}'.format(address, 22),
+        check = {'id': container_name,
+                 'name': 'SSH', 'tcp': '{}:{}'.format(address, 22),
                  'Interval': '30s', 'timeout': '4s'}
-    sd.register(id, name, address, check=check)
+    sd.register(container_name, service_name, address, tags=tags, check=check)
