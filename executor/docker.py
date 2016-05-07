@@ -41,11 +41,10 @@ def run(nodedn):
     opts = generate_docker_opts(docker_opts)
     volumes = generate_volume_opts(disks)
 
-    run('docker run {opts} {volumes} -h {name} --name {name} {image}'.format(
+    _cmd('docker run {opts} {volumes} -h {name} --name {name} {image}'.format(
         name=container_name, opts=opts, volumes=volumes, image=container_image))
     add_network_connectivity(container_name, networks)
-    register_in_consul(container_name, name=service,
-                       address=networks['private']['address'],
+    register_in_consul(container_name, service, networks[0].address,
                        tags=tags, check='SSH')
 
 
@@ -55,22 +54,24 @@ def generate_volume_opts(disks):
         if not os.path.exists(disk.origin):
             os.mkdir(disk.origin)
         volumes += '-v {}:{}:{}'.format(disk.origin, disk.destination, disk.mode)
+    return volumes
 
 
 def generate_docker_opts(extra_opts):
     # Do not assign a local IP to the node
-    OPTS = '--net="none" '
-    OPTS += extra_opts + ' '
+    opts = '--net="none" '
+    opts += extra_opts + ' '
 
-    #OPTS += '--privileged '
-    #OPTS += '-v /sys/fs/cgroup:/sys/fs/cgroup:ro '
-    #OPTS += '-v /dev/log:/dev/log '
-    OPTS += '-v /root/.ssh/authorized_keys:/root/.ssh/authorized_keys '
-    OPTS += '-d '
-    OPTS += '-ti '
+    #opts += '--privileged '
+    #opts += '-v /sys/fs/cgroup:/sys/fs/cgroup:ro '
+    #opts += '-v /dev/log:/dev/log '
+    opts += '-v /root/.ssh/authorized_keys:/root/.ssh/authorized_keys '
+    opts += '-d '
+    opts += '-ti '
     # DOCKER_FIX trick to avoid this issue:
     # https://github.com/docker/docker/issues/14203
-    OPTS += "-e DOCKER_FIX='' "
+    opts += "-e DOCKER_FIX='' "
+    return opts
 
 
 def add_network_connectivity(container_name, networks):
@@ -93,14 +94,14 @@ def add_network_interface(container_name, network):
     gateway = network.gateway
 
     if re.search(r'^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$', gateway):
-        subprocess.call(
+        _cmd(
             'pipework {bridge} -i {device} {name} {ip}/{mask}@{gateway}'
             .format(bridge=bridge, device=device, name=container_name,
                     ip=address,
                     mask=netmask,
                     gateway=gateway))
     else:
-        subprocess.call(
+        _cmd(
             'pipework {bridge} -i {device} {name} {ip}/{mask}'
             .format(bridge=bridge, device=device, name=container_name,
                     ip=address,
@@ -123,3 +124,8 @@ def register_in_consul(container_name, service_name, address, tags=None, check=N
                  'name': 'SSH', 'tcp': '{}:{}'.format(address, 22),
                  'Interval': '30s', 'timeout': '4s'}
     sd.register(container_name, service_name, address, tags=tags, check=check)
+
+
+def _cmd(cmd):
+    """Execute cmd on the shell"""
+    subprocess.call(cmd, shell=True)

@@ -30,8 +30,8 @@ def cli():
 @click.option('--pipework/--no-pipework', default=True, help="Add network connectivity")
 @click.option('--consul/--no-consul', default=True, help="Register in consul service discovery")
 @click.argument('nodedn')
-def launch_cmd(pipework, consul, nodename):
-    pass
+def launch_cmd(pipework, consul, nodedn):
+    docker.run(nodedn)
 
 
 @cli.command('show')
