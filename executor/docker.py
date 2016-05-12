@@ -53,7 +53,7 @@ def generate_volume_opts(disks):
     for disk in disks:
         if not os.path.exists(disk.origin):
             os.mkdir(disk.origin)
-        volumes += '-v {}:{}:{}'.format(disk.origin, disk.destination, disk.mode)
+        volumes += '-v {}:{}:{} '.format(disk.origin, disk.destination, disk.mode)
     return volumes
 
 

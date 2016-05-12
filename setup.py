@@ -14,7 +14,7 @@ setup(
     install_requires=[
         'click',
         'consul-service-discovery',
-        'configuration-registry',
+        'configuration_registry',
         'kvstore',
     ],
     entry_points='''
