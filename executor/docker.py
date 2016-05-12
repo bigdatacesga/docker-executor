@@ -4,6 +4,32 @@ import re
 import consul
 import registry
 
+# Do not assign a local IP to the node
+# DOCKER_FIX trick to avoid this issue:
+# https://github.com/docker/docker/issues/14203
+DOCKER_RUN_OPTS = ('--net="none" '
+                   '-v /root/.ssh/authorized_keys:/root/.ssh/authorized_keys '
+                   '-d -ti -e DOCKER_FIX=""')
+
+
+class Volume(object):
+    """Represents a Docker Volume"""
+    def __init__(self, origin=None, destination=None, mode=None):
+        self.origin = origin
+        self.destination = destination
+        self.mode = mode
+
+
+class Network(object):
+    """Represents a Docker Network Device"""
+    def __init__(self, device=None, address=None,
+                 bridge=None, netmask=None, gateway=None):
+        self.device = device
+        self.address = address
+        self.bridge = bridge
+        self.netmask = netmask
+        self.gateway = gateway
+
 
 def run(nodedn):
     """Run a given container
@@ -11,22 +37,34 @@ def run(nodedn):
     This command gets the info needed to launch the container from the registry.
     Information retrieved from the registry:
 
-        node.name
-        node.docker_image
-        node.docker_opts
-        node.disks
-        node.networks
-        node.tags
-    
-        bridge = network.bridge
-        device = network.device
-        address = network.address
-        netmask = network.netmask
-        gateway = network.gateway
+    Node object:
 
-        /service REST endpoint should return:
-        service.docker_image
-        service.docker_opts
+    - name: name to give to the docker container
+    - clustername: name of the cluster/service to which this docker belongs
+    - docker_image
+    - docker_opts
+    - id: docker id
+    - disks: Disk object list (see below)
+    - networks: Network object list (see below)
+    - tags: ('master', 'yarn')
+    - status: pending, running, failed, stopped
+    - host: docker engine where the container is running
+    - port: main service port, e.g. 22
+    - check_ports: list of ports to check that the container is alive
+
+    Network object (registry.Network object):
+
+    - device
+    - address
+    - bridge
+    - netmask
+    - gateway
+
+    Volume object (registry.Disk object):
+
+    - origin
+    - destination
+    - mode
     """
     node = registry.Node(nodedn)
 
@@ -45,32 +83,21 @@ def run(nodedn):
         name=container_name, opts=opts, volumes=volumes, image=container_image))
     add_network_connectivity(container_name, networks)
     register_in_consul(container_name, service, networks[0].address,
-                       tags=tags, check='SSH')
+                       tags=tags, check_ports='SSH')
 
 
-def generate_volume_opts(disks):
-    volumes = ' '
-    for disk in disks:
-        if not os.path.exists(disk.origin):
-            os.mkdir(disk.origin)
-        volumes += '-v {}:{}:{}'.format(disk.origin, disk.destination, disk.mode)
-    return volumes
+def generate_volume_opts(volumes):
+    volume_opts = ''
+    for volume in volumes:
+        if not os.path.exists(volume.origin):
+            os.mkdir(volume.origin)
+        volume_opts += '-v {}:{}:{} '.format(volume.origin, volume.destination, volume.mode)
+    return volume_opts
 
 
 def generate_docker_opts(extra_opts):
-    # Do not assign a local IP to the node
-    opts = '--net="none" '
-    opts += extra_opts + ' '
-
-    #opts += '--privileged '
-    #opts += '-v /sys/fs/cgroup:/sys/fs/cgroup:ro '
-    #opts += '-v /dev/log:/dev/log '
-    opts += '-v /root/.ssh/authorized_keys:/root/.ssh/authorized_keys '
-    opts += '-d '
-    opts += '-ti '
-    # DOCKER_FIX trick to avoid this issue:
-    # https://github.com/docker/docker/issues/14203
-    opts += "-e DOCKER_FIX='' "
+    opts = DOCKER_RUN_OPTS
+    opts += ' ' + extra_opts + ' '
     return opts
 
 
@@ -85,7 +112,7 @@ def add_network_connectivity(container_name, networks):
 def add_network_interface(container_name, network):
     """Adds one network interface using pipework
 
-    TODO: If not address is specified obtain one from the network service
+    TODO: If no address is specified obtain one from the network service
     """
     device = network.device
     bridge = network.bridge
@@ -93,15 +120,15 @@ def add_network_interface(container_name, network):
     netmask = network.netmask
     gateway = network.gateway
 
-    if re.search(r'^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$', gateway):
-        _cmd(
+    if gateway and re.search(r'^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$', gateway):
+        return _cmd(
             'pipework {bridge} -i {device} {name} {ip}/{mask}@{gateway}'
             .format(bridge=bridge, device=device, name=container_name,
                     ip=address,
                     mask=netmask,
                     gateway=gateway))
     else:
-        _cmd(
+        return _cmd(
             'pipework {bridge} -i {device} {name} {ip}/{mask}'
             .format(bridge=bridge, device=device, name=container_name,
                     ip=address,
@@ -116,16 +143,29 @@ def add_network_interface(container_name, network):
     #            gateway=networks['gateway']))
 
 
-def register_in_consul(container_name, service_name, address, tags=None, check=None):
+def register_in_consul(container_name, service_name, address,
+                       tags=None, port=None, check_ports=None):
     """Register the docker container in consul service discovery"""
     sd = consul.Client()
-    if check == 'SSH':
-        check = {'id': container_name,
-                 'name': 'SSH', 'tcp': '{}:{}'.format(address, 22),
-                 'Interval': '30s', 'timeout': '4s'}
-    sd.register(container_name, service_name, address, tags=tags, check=check)
+    if check_ports:
+        checks = generate_checks(container_name, address, check_ports)
+    sd.register(container_name, service_name, address, tags=tags, port=port, check=checks)
+
+
+def generate_checks(container, address, check_ports):
+    """Generates the check dictionary to pass to consul of the form {'checks': []}"""
+    checks = {}
+    checks['checks'] = []
+    for p in check_ports:
+        checks['checks'].append(
+            {'id': '{}-port{}'.format(container, p),
+             'name': 'port{}'.format(p),
+             'tcp': '{}:{}'.format(address, p),
+             'Interval': '30s',
+             'timeout': '4s'})
+    return checks
 
 
 def _cmd(cmd):
     """Execute cmd on the shell"""
-    subprocess.call(cmd, shell=True)
+    return subprocess.call(cmd, shell=True)
