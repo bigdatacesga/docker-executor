@@ -3,13 +3,16 @@ import subprocess
 import re
 import consul
 import registry
+from . import networks
+import Queue
+import threading
 
 # Do not assign a local IP to the node
 # DOCKER_FIX trick to avoid this issue:
 # https://github.com/docker/docker/issues/14203
 DOCKER_RUN_OPTS = ('--net="none" '
                    '-v /root/.ssh/authorized_keys:/root/.ssh/authorized_keys '
-                   '-d -ti -e DOCKER_FIX=""')
+                   '-ti -e DOCKER_FIX=""')
 
 
 class Volume(object):
@@ -31,7 +34,7 @@ class Network(object):
         self.gateway = gateway
 
 
-def run(nodedn):
+def run(nodedn, daemon=False):
     """Run a given container
 
     This command gets the info needed to launch the container from the registry.
@@ -55,10 +58,11 @@ def run(nodedn):
     Network object (registry.Network object):
 
     - device
-    - address
+    - address: for dynamic allocation use '_', 'dynamic' or ''
     - bridge
     - netmask
     - gateway
+    - name: name of the network
 
     Volume object (registry.Disk object):
 
@@ -68,6 +72,8 @@ def run(nodedn):
     """
     node = registry.Node(nodedn)
 
+    nodename = node.name
+    clustername = node.clustername
     container_name = '{0}-{1}'.format(node.clustername, node.name)
     container_image = node.docker_image
     docker_opts = node.docker_opts
@@ -75,15 +81,31 @@ def run(nodedn):
     tags = node.tags
     disks = node.disks
     networks = node.networks
+    check_ports = node.check_ports
+    port = node.port
 
-    opts = generate_docker_opts(docker_opts)
+    opts = generate_docker_opts(docker_opts, daemon)
     volumes = generate_volume_opts(disks)
 
-    _cmd('docker run {opts} {volumes} -h {name} --name {name} {image}'.format(
-        name=container_name, opts=opts, volumes=volumes, image=container_image))
-    add_network_connectivity(container_name, networks)
+    docker_command = 'docker run {opts} {volumes} -h {name} --name {name} {image}'.format(
+        name=container_name, opts=opts, volumes=volumes, image=container_image)
+    #_cmd(docker_command)
+    #q = Queue.Queue()
+    #t = threading.Thread(target=_cmd, args=(docker_command, q))
+    t = threading.Thread(target=_cmd, args=(docker_command,))
+    t.daemon = True
+    t.start()
+
+    add_network_connectivity(container_name, networks, clustername)
     register_in_consul(container_name, service, networks[0].address,
-                       tags=tags, check_ports='SSH')
+                       tags=tags, check_ports=check_ports)
+
+    node.id = container_name
+    node.status = 'running'
+
+    t.join()
+    #output = q.get()
+    #return output
 
 
 def generate_volume_opts(volumes):
@@ -95,30 +117,33 @@ def generate_volume_opts(volumes):
     return volume_opts
 
 
-def generate_docker_opts(extra_opts):
+def generate_docker_opts(extra_opts, daemon=False):
     opts = DOCKER_RUN_OPTS
     opts += ' ' + extra_opts + ' '
+    if daemon:
+        opts += '-d '
     return opts
 
 
-def add_network_connectivity(container_name, networks):
+def add_network_connectivity(container_name, networks, clustername=''):
     """Adds the public networks interfaces to the given container"""
-    #put('files/bin/pipework', '/tmp/pipework')
-    #run('chmod u+x /tmp/pipework')
     for network in networks:
-        add_network_interface(container_name, network)
+        add_network_interface(container_name, network, clustername)
 
 
-def add_network_interface(container_name, network):
-    """Adds one network interface using pipework
-
-    TODO: If no address is specified obtain one from the network service
-    """
+def add_network_interface(container_name, network, clustername=''):
+    """Adds one network interface using pipework"""
     device = network.device
     bridge = network.bridge
     address = network.address
     netmask = network.netmask
     gateway = network.gateway
+    networkname = network.name
+
+    if not address or address == '_' or address == 'dynamic':
+        address = networks.allocate(networkname, container_name, clustername)
+        # Update registry info
+        network.address = address
 
     if gateway and re.search(r'^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$', gateway):
         return _cmd(
@@ -133,14 +158,6 @@ def add_network_interface(container_name, network):
             .format(bridge=bridge, device=device, name=container_name,
                     ip=address,
                     mask=netmask))
-
-    #subprocess.call('pipework virbrSTORAGE -i eth0 {name} {ip}/{mask}'
-    #    .format(name=container_name, ip=networks['storage']['address'],
-    #            mask=networks['storage']['netmask']))
-    #subprocess.call('pipework virbrPRIVATE -i eth1 {name} {ip}/{mask}@{gateway}'
-    #    .format(name=container_name, ip=networks['private']['address'],
-    #            mask=networks['private']['netmask'],
-    #            gateway=networks['gateway']))
 
 
 def register_in_consul(container_name, service_name, address,

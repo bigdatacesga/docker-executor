@@ -35,6 +35,13 @@ class DockerTestCase(unittest.TestCase):
         expected = '{} {} '.format(common_opts, extra_opts)
         self.assertEqual(returned, expected)
 
+    def test_generate_docker_opts_daemon_mode(self):
+        common_opts = docker.DOCKER_RUN_OPTS
+        extra_opts = '--privileged -v /sys/fs/cgroup:/sys/fs/cgroup:ro -v /dev/log:/dev/log'
+        returned = docker.generate_docker_opts(extra_opts, daemon=True)
+        expected = '{} {} -d '.format(common_opts, extra_opts)
+        self.assertEqual(returned, expected)
+
     def test_add_network_interface_with_gateway(self):
         container = 'test1'
         n = Network('eth0', '10.112.200.123', 'virbrPRIVATE', '16', '10.112.0.1')

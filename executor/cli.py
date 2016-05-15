@@ -29,8 +29,9 @@ def cli():
 @cli.command('run')
 @click.option('--pipework/--no-pipework', default=True, help="Add network connectivity")
 @click.option('--consul/--no-consul', default=True, help="Register in consul service discovery")
+@click.option('--daemon/--no-daemon', default=False, help="Enable daemon mode")
 @click.argument('nodedn')
-def launch_cmd(pipework, consul, nodedn):
+def launch_cmd(pipework, consul, daemon, nodedn):
     docker.run(nodedn)
 
 
