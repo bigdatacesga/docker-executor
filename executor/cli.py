@@ -32,7 +32,7 @@ def cli():
 @click.option('--daemon/--no-daemon', default=False, help="Enable daemon mode")
 @click.argument('nodedn')
 def launch_cmd(pipework, consul, daemon, nodedn):
-    docker.run(nodedn)
+    docker.run(nodedn, daemon)
 
 
 @cli.command('show')

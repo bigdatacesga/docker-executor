@@ -1,3 +1,4 @@
+from __future__ import print_function
 import os
 import subprocess
 import re
@@ -6,6 +7,8 @@ import registry
 from . import networks
 import Queue
 import threading
+from time import sleep
+import socket
 
 # Do not assign a local IP to the node
 # DOCKER_FIX trick to avoid this issue:
@@ -62,7 +65,7 @@ def run(nodedn, daemon=False):
     - bridge
     - netmask
     - gateway
-    - name: name of the network
+    - networkname: name of the network
 
     Volume object (registry.Disk object):
 
@@ -70,6 +73,8 @@ def run(nodedn, daemon=False):
     - destination
     - mode
     """
+    # TODO: Move the properties to a config module so this part is independent from
+    # what you use to retrieve the information
     node = registry.Node(nodedn)
 
     nodename = node.name
@@ -87,20 +92,27 @@ def run(nodedn, daemon=False):
     opts = generate_docker_opts(docker_opts, daemon)
     volumes = generate_volume_opts(disks)
 
-    docker_command = 'docker run {opts} {volumes} -h {name} --name {name} {image}'.format(
+    docker_pull = 'docker pull {image}'.format(image=container_image)
+    _cmd(docker_pull)
+
+    docker_run = 'docker run {opts} {volumes} -h {name} --name {name} {image}'.format(
         name=container_name, opts=opts, volumes=volumes, image=container_image)
-    #_cmd(docker_command)
+    #_cmd(docker_run)
     #q = Queue.Queue()
-    #t = threading.Thread(target=_cmd, args=(docker_command, q))
-    t = threading.Thread(target=_cmd, args=(docker_command,))
+    #t = threading.Thread(target=_cmd, args=(docker_run, q))
+    t = threading.Thread(target=_cmd, args=(docker_run,))
     t.daemon = True
     t.start()
 
+    # Allow container to start
+    # TODO: Communicate with the thread and read info from the queue
+    sleep(2)
     add_network_connectivity(container_name, networks, clustername)
     register_in_consul(container_name, service, networks[0].address,
-                       tags=tags, check_ports=check_ports)
+                       tags=tags, port=port, check_ports=check_ports)
 
     node.id = container_name
+    node.host = socket.gethostname()
     node.status = 'running'
 
     t.join()
@@ -138,7 +150,7 @@ def add_network_interface(container_name, network, clustername=''):
     address = network.address
     netmask = network.netmask
     gateway = network.gateway
-    networkname = network.name
+    networkname = network.networkname
 
     if not address or address == '_' or address == 'dynamic':
         address = networks.allocate(networkname, container_name, clustername)
@@ -166,7 +178,13 @@ def register_in_consul(container_name, service_name, address,
     sd = consul.Client()
     if check_ports:
         checks = generate_checks(container_name, address, check_ports)
-    sd.register(container_name, service_name, address, tags=tags, port=port, check=checks)
+    print("==> Registering the container in Consul Service Discovery")
+    #FIXME: It seems the API only accepts one check at service registration time
+    # To register multiple services register each one using /v1/agent/check/register
+    sd.register(container_name, service_name, address,
+                tags=tags, port=port, check=checks['checks'][0])
+    #sd.register(container_name, service_name, address,
+    #            tags=tags, port=port, check=checks)
 
 
 def generate_checks(container, address, check_ports):
@@ -176,7 +194,7 @@ def generate_checks(container, address, check_ports):
     for p in check_ports:
         checks['checks'].append(
             {'id': '{}-port{}'.format(container, p),
-             'name': 'port{}'.format(p),
+             'name': 'Check TCP port {}'.format(p),
              'tcp': '{}:{}'.format(address, p),
              'Interval': '30s',
              'timeout': '4s'})
@@ -185,4 +203,5 @@ def generate_checks(container, address, check_ports):
 
 def _cmd(cmd):
     """Execute cmd on the shell"""
+    print('==> {}'.format(cmd))
     return subprocess.call(cmd, shell=True)
