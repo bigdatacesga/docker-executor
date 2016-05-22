@@ -16,7 +16,7 @@ import socket
 DOCKER_RUN_OPTS = ('--net="none" '
                    '-v /root/.ssh/authorized_keys:/root/.ssh/authorized_keys '
                   # '-ti -e DOCKER_FIX=""') # 0.1.9
-                   '-t -e DOCKER_FIX=""') # 0.1.10
+                   '-t -e DOCKER_FIX=""') # 0.1.10 0.1.12
                   # '-i -e DOCKER_FIX=""') # 0.1.11
 
 
