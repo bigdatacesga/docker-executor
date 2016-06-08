@@ -95,8 +95,9 @@ def run(nodedn, daemon=False):
     docker_pull = 'docker pull {image}'.format(image=container_image)
     _cmd(docker_pull)
 
-    docker_run = 'docker run {opts} {volumes} -h {name} --name {name} {image}'.format(
-        name=container_name, opts=opts, volumes=volumes, image=container_image)
+    docker_run = 'docker run {opts} {volumes} -h {hostname} --name {name} {image}'.format(
+        hostname=nodename, name=container_name, opts=opts,
+        volumes=volumes, image=container_image)
     #_cmd(docker_run)
     #q = Queue.Queue()
     #t = threading.Thread(target=_cmd, args=(docker_run, q))
