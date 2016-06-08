@@ -15,7 +15,9 @@ import socket
 # https://github.com/docker/docker/issues/14203
 DOCKER_RUN_OPTS = ('--net="none" '
                    '-v /root/.ssh/authorized_keys:/root/.ssh/authorized_keys '
-                   '-ti -e DOCKER_FIX=""')
+                  # '-ti -e DOCKER_FIX=""') # 0.1.9
+                   '-t -e DOCKER_FIX=""') # 0.1.10 0.1.12
+                  # '-i -e DOCKER_FIX=""') # 0.1.11
 
 
 class Volume(object):
