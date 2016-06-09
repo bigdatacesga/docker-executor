@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='docker-executor',
-    version='0.1.16',
+    version='0.1.17',
     author='Javier Cacheiro',
     author_email='bigdata-dev@listas.cesga.es',
     url='https://github.com/javicacheiro/docker-executor',

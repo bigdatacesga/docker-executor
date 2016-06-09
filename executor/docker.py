@@ -15,6 +15,8 @@ import socket
 DOCKER_RUN_OPTS = ('--net="none" '
                    '-v /root/.ssh/authorized_keys:/root/.ssh/authorized_keys '
                    '-t -e DOCKER_FIX=""')
+# https://docs.docker.com/engine/reference/run/#cpu-period-constraint
+CPU_PERIOD = 50000
 
 
 class Volume(object):
@@ -59,6 +61,8 @@ def run(nodedn, daemon=False):
     - host: docker engine where the container is running
     - port: main service port, e.g. 22
     - check_ports: list of ports to check that the container is alive
+    - cpu: number of cores that can be used by this container
+    - mem: memory in MB that can be used by this container
 
     Network object (registry.Network object):
 
@@ -91,15 +95,18 @@ def run(nodedn, daemon=False):
     networks = node.networks
     check_ports = node.check_ports
     port = node.port
+    cpu = node.cpu
+    mem = node.mem
 
     opts = generate_docker_opts(docker_opts, daemon)
+    limits = generate_resource_limits(cpu, mem)
     volumes = generate_volume_opts(disks)
 
     docker_pull = 'docker pull {image}'.format(image=container_image)
     utils.run(docker_pull)
 
-    docker_run = 'docker run {opts} {volumes} -h {hostname} --name {name} {image}'.format(
-        hostname=nodename, name=container_name, opts=opts,
+    docker_run = 'docker run {limits} {opts} {volumes} -h {hostname} --name {name} {image}'.format(
+        hostname=nodename, name=container_name, opts=opts, limits=limits,
         volumes=volumes, image=container_image)
     #utils.run(docker_run)
     #q = Queue.Queue()
@@ -163,4 +170,16 @@ def generate_docker_opts(extra_opts, daemon=False):
     opts += ' ' + extra_opts + ' '
     if daemon:
         opts += '-d '
+    return opts
+
+
+def generate_resource_limits(cpu, mem):
+    """Generate the limits options for cpu and memory
+
+    mem should be given in MB
+    cpu should be given in number of cores
+    """
+    # https://docs.docker.com/engine/reference/run/#cpu-quota-constraint
+    opts = ' --cpu-quota={} --cpu-period={}'.format(int(cpu)*CPU_PERIOD, CPU_PERIOD)
+    opts += ' --memory={}m'.format(mem)
     return opts
