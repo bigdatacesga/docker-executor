@@ -39,7 +39,9 @@ def launch_cmd(pipework, consul, daemon, nodedn):
 @click.argument('nodedn')
 def show_cmd(nodedn):
     node = registry.Node(nodedn)
-    print('name: {}\nstatus: {}'.format(node.name, node.status))
+    print('name: {}\nhost: {}\nstatus: {}'.format(node.name, node.host, node.status))
+    for network in node.networks:
+        print('address: {}'.format(network.address))
 
 
 @cli.command('stop')

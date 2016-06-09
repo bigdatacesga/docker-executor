@@ -133,7 +133,7 @@ def stop(nodedn):
     docker_stop = 'docker stop {}'.format(name)
     utils.run(docker_stop)
     node.status = 'stopped'
-    networks.release(name, networks, clustername)
+    networks.release(networks)
     servicediscovery.deregister(name)
 
 
