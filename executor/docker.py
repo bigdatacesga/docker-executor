@@ -2,7 +2,7 @@ from __future__ import print_function
 import os
 import registry
 from . import utils
-from . import networks
+from . import net
 from . import servicediscovery
 import Queue
 import threading
@@ -111,7 +111,7 @@ def run(nodedn, daemon=False):
     # Allow container to start
     # TODO: Communicate with the thread and read info from the queue
     sleep(2)
-    networks.configure(container_name, networks, clustername)
+    net.configure(container_name, networks, clustername)
     servicediscovery.register(container_name, service, networks[0].address,
                               tags=tags, port=port, check_ports=check_ports)
 
@@ -129,11 +129,11 @@ def stop(nodedn):
     # TODO: Move the properties to a config module
     node = registry.Node(nodedn)
     name = node.id
-    clustername = node.clustername
+    networks = node.networks
     docker_stop = 'docker stop {}'.format(name)
     utils.run(docker_stop)
     node.status = 'stopped'
-    networks.release(networks)
+    net.release(networks)
     servicediscovery.deregister(name)
 
 

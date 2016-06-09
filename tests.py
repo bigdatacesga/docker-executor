@@ -3,7 +3,7 @@ import unittest
 import kvstore
 from executor import docker
 from executor.docker import Volume, Network
-from executor import networks
+from executor import net
 from executor import servicediscovery
 from executor import utils
 
@@ -57,7 +57,7 @@ class DockerTestCase(unittest.TestCase):
         #self.assertEqual(returned, value)
 
 
-class NetworksTestCase(unittest.TestCase):
+class NetTestCase(unittest.TestCase):
 
     def setUp(self):
         self.kv = kvstore.Client(ENDPOINT)
@@ -71,7 +71,7 @@ class NetworksTestCase(unittest.TestCase):
         container = 'test1'
         n = Network('eth0', '10.112.200.123', 'virbrPRIVATE', '16', '10.112.0.1',
                     'admin', 'dynamic')
-        cmd = networks.configure_interface(container, n)
+        cmd = net.configure_interface(container, n)
         expected = 'pipework {bridge} -i {device} {name} {ip}/{mask}@{gateway}'.format(
             bridge=n.bridge, device=n.device, name=container, ip=n.address,
             mask=n.netmask, gateway=n.gateway)
@@ -80,7 +80,7 @@ class NetworksTestCase(unittest.TestCase):
     def test_configure_network_interface_without_gateway(self):
         container = 'test1'
         n = Network('eth0', '10.112.200.123', 'virbrSTORAGE', '16', None, 'admin', 'dynamic')
-        cmd = networks.configure_interface(container, n)
+        cmd = net.configure_interface(container, n)
         expected = 'pipework {bridge} -i {device} {name} {ip}/{mask}'.format(
             bridge=n.bridge, device=n.device, name=container, ip=n.address,
             mask=n.netmask)
