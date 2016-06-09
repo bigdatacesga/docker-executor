@@ -36,6 +36,8 @@ Network object:
 - address
 - netmask
 - gateway
+- networkname
+- type
 
 Disk object:
 

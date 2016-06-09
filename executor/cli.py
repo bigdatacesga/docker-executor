@@ -40,3 +40,15 @@ def launch_cmd(pipework, consul, daemon, nodedn):
 def show_cmd(nodedn):
     node = registry.Node(nodedn)
     print('name: {}\nstatus: {}'.format(node.name, node.status))
+
+
+@cli.command('stop')
+@click.argument('nodedn')
+def stop_cmd(nodedn):
+    docker.stop(nodedn)
+
+
+@cli.command('destroy')
+@click.argument('nodedn')
+def destroy_cmd(nodedn):
+    docker.destroy(nodedn)

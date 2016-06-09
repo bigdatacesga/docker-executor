@@ -1,10 +1,9 @@
 from __future__ import print_function
 import os
-import subprocess
-import re
-import consul
 import registry
+from . import utils
 from . import networks
+from . import servicediscovery
 import Queue
 import threading
 from time import sleep
@@ -15,9 +14,7 @@ import socket
 # https://github.com/docker/docker/issues/14203
 DOCKER_RUN_OPTS = ('--net="none" '
                    '-v /root/.ssh/authorized_keys:/root/.ssh/authorized_keys '
-                  # '-ti -e DOCKER_FIX=""') # 0.1.9
-                   '-t -e DOCKER_FIX=""') # 0.1.10 0.1.12
-                  # '-i -e DOCKER_FIX=""') # 0.1.11
+                   '-t -e DOCKER_FIX=""')
 
 
 class Volume(object):
@@ -31,12 +28,15 @@ class Volume(object):
 class Network(object):
     """Represents a Docker Network Device"""
     def __init__(self, device=None, address=None,
-                 bridge=None, netmask=None, gateway=None):
+                 bridge=None, netmask=None, gateway=None,
+                 networkname=None, network_type=None):
         self.device = device
         self.address = address
         self.bridge = bridge
         self.netmask = netmask
         self.gateway = gateway
+        self.networkname = networkname
+        self.type = network_type
 
 
 def run(nodedn, daemon=False):
@@ -47,7 +47,7 @@ def run(nodedn, daemon=False):
 
     Node object:
 
-    - name: name to give to the docker container
+    - name: hostname of the docker container
     - clustername: name of the cluster/service to which this docker belongs
     - docker_image
     - docker_opts
@@ -68,6 +68,7 @@ def run(nodedn, daemon=False):
     - netmask
     - gateway
     - networkname: name of the network
+    - type: 'static', 'dynamic'
 
     Volume object (registry.Disk object):
 
@@ -95,24 +96,24 @@ def run(nodedn, daemon=False):
     volumes = generate_volume_opts(disks)
 
     docker_pull = 'docker pull {image}'.format(image=container_image)
-    _cmd(docker_pull)
+    utils.run(docker_pull)
 
     docker_run = 'docker run {opts} {volumes} -h {hostname} --name {name} {image}'.format(
         hostname=nodename, name=container_name, opts=opts,
         volumes=volumes, image=container_image)
-    #_cmd(docker_run)
+    #utils.run(docker_run)
     #q = Queue.Queue()
-    #t = threading.Thread(target=_cmd, args=(docker_run, q))
-    t = threading.Thread(target=_cmd, args=(docker_run,))
+    #t = threading.Thread(target=utils.run, args=(docker_run, q))
+    t = threading.Thread(target=utils.run, args=(docker_run,))
     t.daemon = True
     t.start()
 
     # Allow container to start
     # TODO: Communicate with the thread and read info from the queue
     sleep(2)
-    add_network_connectivity(container_name, networks, clustername)
-    register_in_consul(container_name, service, networks[0].address,
-                       tags=tags, port=port, check_ports=check_ports)
+    networks.configure(container_name, networks, clustername)
+    servicediscovery.register(container_name, service, networks[0].address,
+                              tags=tags, port=port, check_ports=check_ports)
 
     node.id = container_name
     node.host = socket.gethostname()
@@ -121,6 +122,31 @@ def run(nodedn, daemon=False):
     t.join()
     #output = q.get()
     #return output
+
+
+def stop(nodedn):
+    """Stop a running container"""
+    # TODO: Move the properties to a config module
+    node = registry.Node(nodedn)
+    name = node.id
+    clustername = node.clustername
+    docker_stop = 'docker stop {}'.format(name)
+    utils.run(docker_stop)
+    node.status = 'stopped'
+    networks.release(name, networks, clustername)
+    servicediscovery.deregister(name)
+
+
+def destroy(nodedn):
+    """Destroy a running container, ie. stop and remove the local image"""
+    stop(nodedn)
+    # TODO: Move the properties to a config module
+    node = registry.Node(nodedn)
+    name = node.id
+    docker_rm = 'docker rm {}'.format(name)
+    utils.run(docker_rm)
+    node.host = '_'
+    node.status = 'destroyed'
 
 
 def generate_volume_opts(volumes):
@@ -138,73 +164,3 @@ def generate_docker_opts(extra_opts, daemon=False):
     if daemon:
         opts += '-d '
     return opts
-
-
-def add_network_connectivity(container_name, networks, clustername=''):
-    """Adds the public networks interfaces to the given container"""
-    for network in networks:
-        add_network_interface(container_name, network, clustername)
-
-
-def add_network_interface(container_name, network, clustername=''):
-    """Adds one network interface using pipework"""
-    device = network.device
-    bridge = network.bridge
-    address = network.address
-    netmask = network.netmask
-    gateway = network.gateway
-    networkname = network.networkname
-
-    if not address or address == '_' or address == 'dynamic':
-        address = networks.allocate(networkname, container_name, clustername)
-        # Update registry info
-        network.address = address
-
-    if gateway and re.search(r'^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$', gateway):
-        return _cmd(
-            'pipework {bridge} -i {device} {name} {ip}/{mask}@{gateway}'
-            .format(bridge=bridge, device=device, name=container_name,
-                    ip=address,
-                    mask=netmask,
-                    gateway=gateway))
-    else:
-        return _cmd(
-            'pipework {bridge} -i {device} {name} {ip}/{mask}'
-            .format(bridge=bridge, device=device, name=container_name,
-                    ip=address,
-                    mask=netmask))
-
-
-def register_in_consul(container_name, service_name, address,
-                       tags=None, port=None, check_ports=None):
-    """Register the docker container in consul service discovery"""
-    sd = consul.Client()
-    if check_ports:
-        checks = generate_checks(container_name, address, check_ports)
-    print("==> Registering the container in Consul Service Discovery")
-    #FIXME: It seems the API only accepts one check at service registration time
-    # To register multiple services register each one using /v1/agent/check/register
-    sd.register(container_name, service_name, address,
-                tags=tags, port=port, check=checks['checks'][0])
-    #sd.register(container_name, service_name, address,
-    #            tags=tags, port=port, check=checks)
-
-
-def generate_checks(container, address, check_ports):
-    """Generates the check dictionary to pass to consul of the form {'checks': []}"""
-    checks = {}
-    checks['checks'] = []
-    for p in check_ports:
-        checks['checks'].append(
-            {'id': '{}-port{}'.format(container, p),
-             'name': 'Check TCP port {}'.format(p),
-             'tcp': '{}:{}'.format(address, p),
-             'Interval': '30s',
-             'timeout': '4s'})
-    return checks
-
-
-def _cmd(cmd):
-    """Execute cmd on the shell"""
-    print('==> {}'.format(cmd))
-    return subprocess.call(cmd, shell=True)
