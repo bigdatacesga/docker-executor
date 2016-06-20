@@ -85,11 +85,11 @@ def run(nodedn, daemon=False):
     node = registry.Node(nodedn)
 
     nodename = node.name
-    clustername = node.clustername
-    container_name = '{0}-{1}'.format(node.clustername, node.name)
+    instanceid = node.instanceid
+    container_name = '{0}-{1}'.format(node.instanceid, node.name)
     container_image = node.docker_image
     docker_opts = node.docker_opts
-    service = node.clustername
+    service = node.dnsname
     tags = node.tags
     disks = node.disks
     networks = node.networks
@@ -118,7 +118,7 @@ def run(nodedn, daemon=False):
     # Allow container to start
     # TODO: Communicate with the thread and read info from the queue
     sleep(2)
-    net.configure(container_name, networks, clustername)
+    net.configure(container_name, networks, instanceid)
     servicediscovery.register(container_name, service, networks[0].address,
                               tags=tags, port=port, check_ports=check_ports)
 
