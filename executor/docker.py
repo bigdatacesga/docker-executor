@@ -163,7 +163,8 @@ def generate_volume_opts(volumes):
     for volume in volumes:
         if not os.path.exists(volume.origin):
             os.mkdir(volume.origin)
-        volume_opts += '-v {}:{}:{} '.format(volume.origin, volume.destination, volume.mode)
+        mode = volume.get("mode") or "rw"
+        volume_opts += '-v {}:{}:{} '.format(volume.origin, volume.destination, mode)
     return volume_opts
 
 
