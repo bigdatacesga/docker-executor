@@ -88,13 +88,15 @@ def run(nodedn, daemon=False):
     instanceid = registry.id_from(str(node))
     container_name = '{0}-{1}'.format(instanceid, node.name)
     container_image = node.docker_image
-    docker_opts = node.docker_opts
+
+    docker_opts = node.get("docker_opts") or ""
+    tags = node.get("tags") or ""
+    check_ports = node.get("check_ports") or "22"
+    port = node.get("port") or "22"
+
     service = node.dnsname
-    tags = node.tags
     disks = node.disks
     networks = node.networks
-    check_ports = node.check_ports
-    port = node.port
     cpu = node.cpu
     mem = node.mem
 
