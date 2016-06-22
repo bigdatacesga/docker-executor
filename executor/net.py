@@ -15,14 +15,17 @@ def configure(container_name, networks, clustername=''):
 
 def configure_interface(container_name, network, clustername=''):
     """Adds one network interface using pipework"""
-    device = network.device
-    bridge = network.bridge
-    address = network.address
-    netmask = network.netmask
-    gateway = network.gateway
+    device = network.name
+    address = network.get("address")
+    type = network.type
     networkname = network.networkname
 
-    if not address or address == '_' or address == 'dynamic':
+    # FIXME get this info from the networks service
+    bridge = network.bridge
+    netmask = network.netmask
+    gateway = network.gateway
+
+    if not address or address == '_' or type == 'dynamic':
         address = allocate(networkname, container_name, clustername)
         # Update registry info
         network.address = address
