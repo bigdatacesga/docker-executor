@@ -85,8 +85,8 @@ def run(nodedn, daemon=False):
     node = registry.Node(nodedn)
 
     nodename = node.name
-    instanceid = node.instanceid
-    container_name = '{0}-{1}'.format(node.instanceid, node.name)
+    instanceid = registry.id_from(str(node))
+    container_name = '{0}-{1}'.format(instanceid, node.name)
     container_image = node.docker_image
     docker_opts = node.docker_opts
     service = node.dnsname
