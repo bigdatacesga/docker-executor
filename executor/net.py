@@ -60,12 +60,20 @@ def release_interface(network):
 
 def allocate(network, node, cluster='_'):
     """Allocate a new network address to a given node that can belong to a cluster"""
-    r = requests.get('{}/{}/addresses?free'.format(BASE, network))
-    data = r.json()
-    free = data['addresses']
-    address = sorted(free, reverse=True).pop()
-    assigned = {'status': 'used', 'clustername': cluster, 'node': node}
-    requests.put('{}/{}/addresses/{}'.format(BASE, network, address), json=assigned)
+
+    # # USING GET AND PUT
+    # r = requests.get('{}/{}/addresses?free'.format(BASE, network))
+    # data = r.json()
+    # free = data['addresses']
+    # address = sorted(free, reverse=True).pop()
+    # assigned = {'status': 'used', 'clustername': cluster, 'node': node}
+    # requests.put('{}/{}/addresses/{}'.format(BASE, network, address), json=assigned)
+
+    # USING (atomic) POST
+    r = requests.post('{}/{}/allocate'.format(BASE, network))
+    if r.status_code != 200:
+        raise Exception("Can't allocate address")
+    address = r.content
     return address
 
 

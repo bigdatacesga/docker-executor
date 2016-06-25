@@ -90,8 +90,8 @@ def run(nodedn, daemon=False):
     container_image = node.docker_image
 
     docker_opts = node.get("docker_opts") or ""
-    tags = node.get("tags") or ""
-    check_ports = node.get("check_ports") or "22"
+    tags = node.get("tags").split(",") or [""]
+    check_ports = node.get("check_ports").split(",") or ["22"]
     port = node.get("port") or "22"
 
     service = node.dnsname
