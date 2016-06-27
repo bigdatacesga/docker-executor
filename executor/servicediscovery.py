@@ -7,11 +7,14 @@ def register(container_name, service_name, address,
     sd = consul.Client()
     if check_ports:
         checks = generate_checks(container_name, address, check_ports)
+        #FIXME: It seems the API only accepts one check at service registration time
+        # To register multiple checks register each one using /v1/agent/check/register
+        checks = checks['checks'][0]
+    else:
+        checks = None
     print("==> Registering the container in Consul Service Discovery")
-    #FIXME: It seems the API only accepts one check at service registration time
-    # To register multiple services register each one using /v1/agent/check/register
     sd.register(container_name, service_name, address,
-                tags=tags, port=port, check=checks['checks'][0])
+                tags=tags, port=port, check=checks)
     #sd.register(container_name, service_name, address,
     #            tags=tags, port=port, check=checks)
 
