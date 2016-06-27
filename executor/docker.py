@@ -64,7 +64,7 @@ def run(nodedn, daemon=False):
     if check_ports:
         check_ports = check_ports.split(',')
 
-    service = node.dnsname
+    service = node.cluster.dnsname
     disks = node.disks
     networks = node.networks
     cpu = node.cpu
