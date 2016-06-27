@@ -48,7 +48,7 @@ class DockerTestCase(unittest.TestCase):
 
     def test_register_in_consul(self):
         raise NotImplementedError
-        
+
     #def test_set_new_key_starting_with_slash(self):
         #key = '/__testing__/testsetnew'
         #value = '123456'

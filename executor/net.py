@@ -16,14 +16,14 @@ def configure(container_name, networks, clustername=''):
 def configure_interface(container_name, network, clustername=''):
     """Adds one network interface using pipework"""
     device = network.name
-    address = network.get("address")
+    address = network.get('address')
     type = network.type
     networkname = network.networkname
 
-    # FIXME get this info from the networks service
-    bridge = network.bridge
-    netmask = network.netmask
-    gateway = network.gateway
+    info = basic_network_info(network)
+    bridge = info['bridge']
+    netmask = info['netmask']
+    gateway = info['gateway']
 
     if not address or address == '_' or type == 'dynamic':
         address = allocate(networkname, container_name, clustername)
@@ -61,6 +61,7 @@ def release_interface(network):
 def allocate(network, node, cluster='_'):
     """Allocate a new network address to a given node that can belong to a cluster"""
 
+    # TODO: Clean if not needed
     # # USING GET AND PUT
     # r = requests.get('{}/{}/addresses?free'.format(BASE, network))
     # data = r.json()
@@ -82,3 +83,12 @@ def deallocate(network, address):
     free = {'status': 'free', 'clustername': '_', 'node': '_'}
     r = requests.put('{}/{}/addresses/{}'.format(BASE, network, address), json=free)
     return r
+
+
+def basic_network_info(network):
+    """Return basic network info from the networks service"""
+    r = requests.get('{}/{}'.format(BASE, network.networkname))
+    data = r.json()
+    return {'bridge': data['bridge'], 'netmask': data['netmask'],
+            'gateway': data['gateway']}
+

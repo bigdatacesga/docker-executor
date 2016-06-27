@@ -45,40 +45,6 @@ def run(nodedn, daemon=False):
     """Run a given container
 
     This command gets the info needed to launch the container from the registry.
-    Information retrieved from the registry:
-
-    Node object:
-
-    - name: hostname of the docker container
-    - clustername: name of the cluster/service to which this docker belongs
-    - docker_image
-    - docker_opts
-    - id: docker id
-    - disks: Disk object list (see below)
-    - networks: Network object list (see below)
-    - tags: ('master', 'yarn')
-    - status: pending, running, failed, stopped
-    - host: docker engine where the container is running
-    - port: main service port, e.g. 22
-    - check_ports: list of ports to check that the container is alive
-    - cpu: number of cores that can be used by this container
-    - mem: memory in MB that can be used by this container
-
-    Network object (registry.Network object):
-
-    - device
-    - address: for dynamic allocation use '_', 'dynamic' or ''
-    - bridge
-    - netmask
-    - gateway
-    - networkname: name of the network
-    - type: 'static', 'dynamic'
-
-    Volume object (registry.Disk object):
-
-    - origin
-    - destination
-    - mode
     """
     # TODO: Move the properties to a config module so this part is independent from
     # what you use to retrieve the information
@@ -89,10 +55,14 @@ def run(nodedn, daemon=False):
     container_name = '{0}-{1}'.format(instanceid, node.name)
     container_image = node.docker_image
 
-    docker_opts = node.get("docker_opts") or ""
-    tags = node.get("tags").split(",") or [""]
-    check_ports = node.get("check_ports").split(",") or ["22"]
-    port = node.get("port") or "22"
+    docker_opts = node.get('docker_opts', '')
+    port = node.get('port')
+    tags = node.get('tags')
+    if tags:
+        tags = tags.split(',')
+    check_ports = node.get('check_ports')
+    if check_ports:
+        check_ports = check_ports.split(',')
 
     service = node.dnsname
     disks = node.disks
@@ -163,7 +133,7 @@ def generate_volume_opts(volumes):
     for volume in volumes:
         if not os.path.exists(volume.origin):
             os.mkdir(volume.origin)
-        mode = volume.get("mode") or "rw"
+        mode = volume.get('mode', 'rw')
         volume_opts += '-v {}:{}:{} '.format(volume.origin, volume.destination, mode)
     return volume_opts
 
