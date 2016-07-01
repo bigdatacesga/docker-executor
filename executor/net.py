@@ -4,7 +4,7 @@ import requests
 from . import utils
 
 
-BASE = 'http://networks.service.int.cesga.es:5000/resources/networks/v1/networks'
+BASE = 'http://networks:5000/v1/networks'
 
 
 def configure(containername, networks, clustername=''):
