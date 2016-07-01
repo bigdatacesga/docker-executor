@@ -72,7 +72,7 @@ def allocate(networkname, nodename, clustername='_'):
 
     # USING (atomic) POST
     data = {'cluster': clustername, 'node': nodename}
-    r = requests.post('{}/{}/allocate'.format(BASE, networkname), json=data)
+    r = requests.post('{}/{}'.format(BASE, networkname), json=data)
     if r.status_code != 200:
         raise Exception("Can't allocate address")
     address = r.content
