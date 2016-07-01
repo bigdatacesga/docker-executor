@@ -7,13 +7,13 @@ from . import utils
 BASE = 'http://networks.service.int.cesga.es:5000/resources/networks/v1/networks'
 
 
-def configure(container_name, networks, clustername=''):
+def configure(containername, networks, clustername=''):
     """Configure the networks interfaces to the given container"""
     for network in networks:
-        configure_interface(container_name, network, clustername)
+        configure_interface(containername, network, clustername)
 
 
-def configure_interface(container_name, network, clustername=''):
+def configure_interface(containername, network, clustername=''):
     """Adds one network interface using pipework"""
     device = network.name
     address = network.get('address')
@@ -26,21 +26,21 @@ def configure_interface(container_name, network, clustername=''):
     gateway = info['gateway']
 
     if not address or address == '_' or type == 'dynamic':
-        address = allocate(networkname, container_name, clustername)
+        address = allocate(networkname, containername, clustername)
         # Update registry info
         network.address = address
 
     if gateway and re.search(r'^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$', gateway):
         return utils.run(
             'pipework {bridge} -i {device} {name} {ip}/{mask}@{gateway}'
-            .format(bridge=bridge, device=device, name=container_name,
+            .format(bridge=bridge, device=device, name=containername,
                     ip=address,
                     mask=netmask,
                     gateway=gateway))
     else:
         return utils.run(
             'pipework {bridge} -i {device} {name} {ip}/{mask}'
-            .format(bridge=bridge, device=device, name=container_name,
+            .format(bridge=bridge, device=device, name=containername,
                     ip=address,
                     mask=netmask))
 
@@ -58,20 +58,21 @@ def release_interface(network):
         network.address = '_'
 
 
-def allocate(network, node, cluster='_'):
+def allocate(networkname, nodename, clustername='_'):
     """Allocate a new network address to a given node that can belong to a cluster"""
 
     # TODO: Clean if not needed
     # # USING GET AND PUT
-    # r = requests.get('{}/{}/addresses?free'.format(BASE, network))
+    # r = requests.get('{}/{}/addresses?free'.format(BASE, networkname))
     # data = r.json()
     # free = data['addresses']
     # address = sorted(free, reverse=True).pop()
-    # assigned = {'status': 'used', 'clustername': cluster, 'node': node}
-    # requests.put('{}/{}/addresses/{}'.format(BASE, network, address), json=assigned)
+    # assigned = {'status': 'used', 'cluster': clustername, 'node': nodename}
+    # requests.put('{}/{}/addresses/{}'.format(BASE, networkname, address), json=assigned)
 
     # USING (atomic) POST
-    r = requests.post('{}/{}/allocate'.format(BASE, network))
+    data = {'cluster': clustername, 'node': nodename}
+    r = requests.post('{}/{}/allocate'.format(BASE, networkname), json=data)
     if r.status_code != 200:
         raise Exception("Can't allocate address")
     address = r.content
@@ -80,7 +81,7 @@ def allocate(network, node, cluster='_'):
 
 def deallocate(network, address):
     """Deallocate a given network address"""
-    free = {'status': 'free', 'clustername': '_', 'node': '_'}
+    free = {'status': 'free', 'cluster': '_', 'node': '_'}
     r = requests.put('{}/{}/addresses/{}'.format(BASE, network, address), json=free)
     return r
 

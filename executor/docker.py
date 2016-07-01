@@ -19,28 +19,6 @@ DOCKER_RUN_OPTS = ('--net="none" '
 CPU_PERIOD = 50000
 
 
-class Volume(object):
-    """Represents a Docker Volume"""
-    def __init__(self, origin=None, destination=None, mode=None):
-        self.origin = origin
-        self.destination = destination
-        self.mode = mode
-
-
-class Network(object):
-    """Represents a Docker Network Device"""
-    def __init__(self, device=None, address=None,
-                 bridge=None, netmask=None, gateway=None,
-                 networkname=None, network_type=None):
-        self.device = device
-        self.address = address
-        self.bridge = bridge
-        self.netmask = netmask
-        self.gateway = gateway
-        self.networkname = networkname
-        self.type = network_type
-
-
 def run(nodedn, daemon=False):
     """Run a given container
 
