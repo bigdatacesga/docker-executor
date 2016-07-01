@@ -74,9 +74,8 @@ def allocate(networkname, nodename, clustername='_'):
     data = {'cluster': clustername, 'node': nodename}
     r = requests.post('{}/{}'.format(BASE, networkname), json=data)
     if r.status_code != 200:
-        raise Exception("Can't allocate address")
-    address = r.content
-    return address
+        raise Exception('Failure allocating network address')
+    return r.json()['address']
 
 
 def deallocate(network, address):
