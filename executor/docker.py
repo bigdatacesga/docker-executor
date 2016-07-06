@@ -79,7 +79,7 @@ def run(nodedn, daemon=False):
     # We need to store the docker Name Space PID for later removal of the veth
     # pair created by pipework
     docker_nspid = subprocess.check_output(["docker", "inspect", "--format='{{ .State.Pid }}'", container_name])
-    node.nspid = docker_nspid
+    node.nspid = docker_nspid.strip()
 
     node.status = 'running'
 
