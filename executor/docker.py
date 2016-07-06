@@ -8,6 +8,7 @@ import Queue
 import threading
 from time import sleep
 import socket
+import subprocess
 
 # Do not assign a local IP to the node
 # DOCKER_FIX trick to avoid this issue:
@@ -74,6 +75,12 @@ def run(nodedn, daemon=False):
 
     node.id = container_name
     node.host = socket.gethostname()
+
+    # We need to store the docker Name Space PID for later removal of the veth
+    # pair created by pipework
+    docker_nspid = subprocess.check_output(["docker", "inspect", "--format='{{ .State.Pid }}'", container_name])
+    node.nspid = docker_nspid
+
     node.status = 'running'
 
     t.join()
@@ -87,6 +94,7 @@ def stop(nodedn):
     node = registry.Node(nodedn)
     name = node.id
     networks = node.networks
+    clean_pipework_devices(node)
     docker_stop = 'docker stop {}'.format(name)
     utils.run(docker_stop)
     node.status = 'stopped'
@@ -94,8 +102,30 @@ def stop(nodedn):
     servicediscovery.deregister(name)
 
 
+def clean_pipework_devices(node):
+    """Remove the veth pair created by pipework"""
+    print("==> Cleaning pipework network devices")
+    # Get the docker process Name Space PID
+    nspid = node.nspid
+    # Add the NSPID of this docker to allow using it with ip netns
+    utils.run('ln -s "/proc/{0}/ns/net" "/var/run/netns/{0}"'.format(nspid))
+    for dev in node.networks:
+        # Guest veth
+        utils.run('ip netns exec {nspid} ip link del {dev}'
+                  .format(nspid=nspid, dev=dev.name))
+        #subprocess.call(["ip", "netns", "exec", nspid,
+                         #"ip", "link", "del", dev.name])
+        # Local veth
+        local_ifname = 'v{}pl{}'.format(dev.name, nspid)
+        utils.run('ip link del {}'.format(local_ifname))
+        #subprocess.call(["ip", "link", "del", local_ifname])
+    # Remove the traces of the namespace
+    utils.run('rm -f "/var/run/netns/{}"'.format(nspid))
+
+
 def destroy(nodedn):
     """Destroy a running container, ie. stop and remove the local image"""
+    # First stop the container
     stop(nodedn)
     # TODO: Move the properties to a config module
     node = registry.Node(nodedn)
