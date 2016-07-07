@@ -102,27 +102,6 @@ def stop(nodedn):
     servicediscovery.deregister(name)
 
 
-def clean_pipework_devices(node):
-    """Remove the veth pair created by pipework"""
-    print("==> Cleaning pipework network devices")
-    # Get the docker process Name Space PID
-    nspid = node.nspid
-    # Add the NSPID of this docker to allow using it with ip netns
-    utils.run('ln -s "/proc/{0}/ns/net" "/var/run/netns/{0}"'.format(nspid))
-    for dev in node.networks:
-        # Guest veth
-        utils.run('ip netns exec {nspid} ip link del {dev}'
-                  .format(nspid=nspid, dev=dev.name))
-        #subprocess.call(["ip", "netns", "exec", nspid,
-                         #"ip", "link", "del", dev.name])
-        # Local veth
-        local_ifname = 'v{}pl{}'.format(dev.name, nspid)
-        utils.run('ip link del {}'.format(local_ifname))
-        #subprocess.call(["ip", "link", "del", local_ifname])
-    # Remove the traces of the namespace
-    utils.run('rm -f "/var/run/netns/{}"'.format(nspid))
-
-
 def destroy(nodedn):
     """Destroy a running container, ie. stop and remove the local image"""
     # First stop the container
@@ -134,6 +113,35 @@ def destroy(nodedn):
     utils.run(docker_rm)
     node.host = '_'
     node.status = 'destroyed'
+
+
+def clean_pipework_devices(node):
+    """Remove the veth pair created by pipework"""
+    print("==> Cleaning pipework network devices")
+    # Get the docker process Name Space PID
+    nspid = node.nspid
+    # Add the NSPID of this docker to allow using it with ip netns
+    utils.run('ln -s "/proc/{0}/ns/net" "/var/run/netns/{0}"'.format(nspid))
+    for dev in node.networks:
+        # FIXME: Review this part
+        # By default when the docker is stopped the container device is removed
+        # and this causes the local device to be also removed
+        # Unfortunately in some cases these devices remain for unknown reasons
+        # NOTE: When you delete one veth from the pair the other is
+        # automatically deleted. So only one of the two below commands
+        # would be really required if everything works correctly
+
+        # Guest veth
+        utils.run('ip netns exec {nspid} ip link del {dev}'
+                  .format(nspid=nspid, dev=dev.name))
+        #subprocess.call(["ip", "netns", "exec", nspid,
+                         #"ip", "link", "del", dev.name])
+        # Local veth
+        local_ifname = 'v{}pl{}'.format(dev.name, nspid)
+        utils.run('ip link del {}'.format(local_ifname))
+        #subprocess.call(["ip", "link", "del", local_ifname])
+    # Remove the traces of the namespace
+    utils.run('rm -f "/var/run/netns/{}"'.format(nspid))
 
 
 def generate_volume_opts(volumes):
