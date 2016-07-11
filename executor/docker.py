@@ -68,7 +68,7 @@ def run(nodedn, daemon=False):
 
     # Allow container to start
     # TODO: Communicate with the thread and read info from the queue
-    sleep(2)
+    sleep(10)
     net.configure(container_name, networks, instanceid)
     servicediscovery.register(container_name, service, networks[0].address,
                               tags=tags, port=port, check_ports=check_ports)
