@@ -4,9 +4,7 @@ import registry
 from . import utils
 from . import net
 from . import servicediscovery
-import Queue
 import threading
-from time import sleep
 import socket
 import subprocess
 
@@ -59,16 +57,13 @@ def run(nodedn, daemon=False):
     docker_run = 'docker run {limits} {opts} {volumes} -h {hostname} --name {name} {image}'.format(
         hostname=nodename, name=container_name, opts=opts, limits=limits,
         volumes=volumes, image=container_image)
-    #utils.run(docker_run)
-    #q = Queue.Queue()
-    #t = threading.Thread(target=utils.run, args=(docker_run, q))
     t = threading.Thread(target=utils.run, args=(docker_run,))
     t.daemon = True
     t.start()
 
-    # Allow container to start
-    # TODO: Communicate with the thread and read info from the queue
-    sleep(10)
+    # Wait for container to start
+    utils.wait(container_name)
+
     net.configure(container_name, networks, instanceid)
     servicediscovery.register(container_name, service, networks[0].address,
                               tags=tags, port=port, check_ports=check_ports)
@@ -82,10 +77,7 @@ def run(nodedn, daemon=False):
     node.nspid = docker_nspid.strip()
 
     node.status = 'running'
-
     t.join()
-    #output = q.get()
-    #return output
 
 
 def stop(nodedn):
