@@ -11,6 +11,7 @@ def run(cmd):
 def wait(container_name):
     """Wait until container is running"""
     while is_not_running(container_name):
+        print 'Waiting for container {}'.format(container_name)
         time.sleep(2)
 
 
