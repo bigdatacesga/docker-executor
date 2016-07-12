@@ -49,3 +49,11 @@ Volume object (registry.Disk object):
 - origin
 - destination
 - mode (OPTIONAL): default 'rw'
+
+Deployment
+----------
+Using clush and pip:
+
+::
+    python setup.py sdist upload -r pypi
+    clush -bw @bigdata pip install --upgrade --no-cache-dir docker-executor
