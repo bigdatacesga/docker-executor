@@ -1,18 +1,21 @@
+import logging
 import subprocess
 import time
 
 
 def run(cmd):
     """Execute cmd on the shell"""
-    print('==> {}'.format(cmd))
+    logging.info(cmd)
     return subprocess.call(cmd, shell=True)
 
 
 def wait(container_name):
     """Wait until container is running"""
+    logging.info('Verifying if container {} is running'.format(container_name))
     while is_not_running(container_name):
-        print 'Waiting for container {}'.format(container_name)
+        logging.debug('Waiting for container {} to start'.format(container_name))
         time.sleep(2)
+    logging.info('Container {} is running'.format(container_name))
 
 
 def is_not_running(container_name):
@@ -27,5 +30,3 @@ def is_running(container_name):
     if found:
         return True
     return False
-
-

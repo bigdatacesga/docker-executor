@@ -4,12 +4,15 @@
 """
 from __future__ import print_function
 import logging
+import sys
 import click
 import registry
 from . import docker
 # we need the config module to load the logging configuration
-
-logger = logging.getLogger(__name__)
+logging.basicConfig(stream=sys.stdout,
+                    level=logging.DEBUG,
+                    format='%(asctime)s %(filename)s %(levelno)s %(message)s',
+                    datefmt='%d/%m/%Y %I:%M:%S')
 
 # For debugging use global endpoint instead of localhost connection
 registry.connect('http://10.112.0.101:8500/v1/kv')
