@@ -11,8 +11,9 @@ from . import docker
 # we need the config module to load the logging configuration
 logging.basicConfig(stream=sys.stdout,
                     level=logging.DEBUG,
-                    format='%(asctime)s %(filename)s %(levelno)s %(message)s',
-                    datefmt='%d/%m/%Y %I:%M:%S')
+                    format='%(asctime)s %(name)-12s %(levelname)-8s %(message)s')
+
+logger = logging.getLogger(__name__)
 
 # For debugging use global endpoint instead of localhost connection
 registry.connect('http://10.112.0.101:8500/v1/kv')

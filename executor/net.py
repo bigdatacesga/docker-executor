@@ -1,8 +1,10 @@
 """Network Address Allocation Utils"""
+import logging
 import re
 import requests
 from . import utils
 
+logger = logging.getLogger(__name__)
 
 BASE = 'http://networks:5000/v1/networks'
 
@@ -19,6 +21,8 @@ def configure_interface(containername, network, clustername=''):
     address = network.get('address')
     type = network.type
     networkname = network.networkname
+
+    logger.info('Configuring {} for {}'.format(device , containername))
 
     info = basic_network_info(network)
     bridge = info['bridge']
@@ -43,6 +47,9 @@ def configure_interface(containername, network, clustername=''):
             .format(bridge=bridge, device=device, name=containername,
                     ip=address,
                     mask=netmask))
+
+    logger.info('Configured {} with {} for {}'
+                .format(device, address, containername))
 
 
 def release(networks):
@@ -80,6 +87,7 @@ def allocate(networkname, nodename, clustername='_'):
 
 def deallocate(network, address):
     """Deallocate a given network address"""
+    logger.info('Deallocating network address {}'.format(address))
     free = {'status': 'free', 'cluster': '_', 'node': '_'}
     r = requests.put('{}/{}/addresses/{}'.format(BASE, network, address), json=free)
     return r

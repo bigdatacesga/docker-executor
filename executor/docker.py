@@ -9,6 +9,8 @@ import threading
 import socket
 import subprocess
 
+logger = logging.getLogger(__name__)
+
 # Do not assign a local IP to the node
 # DOCKER_FIX trick to avoid this issue:
 # https://github.com/docker/docker/issues/14203
@@ -78,7 +80,7 @@ def run(nodedn, daemon=False):
     node.nspid = docker_nspid.strip()
 
     node.status = 'running'
-    logging.info('Node status set to running for {}'.format(container_name))
+    logger.info('Node status set to running for {}'.format(container_name))
     t.join()
 
 
@@ -88,7 +90,7 @@ def stop(nodedn):
     node = registry.Node(nodedn)
     name = node.id
     networks = node.networks
-    logging.info('Stopping container {}'.format(name))
+    logger.info('Stopping container {}'.format(name))
     clean_pipework_devices(node)
     docker_stop = 'docker stop {}'.format(name)
     utils.run(docker_stop)
@@ -112,7 +114,7 @@ def destroy(nodedn):
 
 def clean_pipework_devices(node):
     """Remove the veth pair created by pipework"""
-    logging.info('Cleaning pipework network devices')
+    logger.info('Cleaning pipework network devices')
     # Get the docker process Name Space PID
     nspid = node.nspid
     # Add the NSPID of this docker to allow using it with ip netns
