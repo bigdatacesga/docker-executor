@@ -1,10 +1,14 @@
 import consul
+import config
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def register(container_name, service_name, address,
              tags=None, port=None, check_ports=None):
     """Register the docker container in consul service discovery"""
-    sd = consul.Client()
+    sd = consul.Client(config.CONSUL_URL)
     if check_ports:
         checks = generate_checks(container_name, address, check_ports)
         #FIXME: It seems the API only accepts one check at service registration time
@@ -12,7 +16,7 @@ def register(container_name, service_name, address,
         checks = checks['checks'][0]
     else:
         checks = None
-    print("==> Registering the container in Consul Service Discovery")
+    logger.info("Registering the container in Consul Service Discovery")
     sd.register(container_name, service_name, address,
                 tags=tags, port=port, check=checks)
     #sd.register(container_name, service_name, address,
@@ -21,8 +25,8 @@ def register(container_name, service_name, address,
 
 def deregister(container_name):
     """Deregister the docker container from consul service discovery"""
-    sd = consul.Client()
-    print("==> Deregistering the container from Consul Service Discovery")
+    sd = consul.Client(config.CONSUL_URL)
+    logger.info("Deregistering the container from Consul Service Discovery")
     sd.deregister(container_name)
 
 

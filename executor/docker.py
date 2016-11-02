@@ -1,4 +1,5 @@
 from __future__ import print_function
+import config
 import logging
 import os
 import registry
@@ -26,52 +27,31 @@ def run(nodedn, daemon=False):
 
     This command gets the info needed to launch the container from the registry.
     """
-    # TODO: Move the properties to a config module so this part is independent from
-    # what you use to retrieve the information
-    node = registry.Node(nodedn)
+    node = config.load(nodedn)
 
-    nodename = node.name
-    instanceid = registry.id_from(str(node))
-    container_name = '{0}-{1}'.format(instanceid, node.name)
-    container_image = node.docker_image
+    opts = generate_docker_opts(node.docker_opts, daemon)
+    limits = generate_resource_limits(node.cpu, node.mem)
+    volumes = generate_volume_opts(node.disks)
 
-    docker_opts = node.get('docker_opts', '')
-    port = node.get('port')
-    tags = node.get('tags')
-    if tags:
-        tags = tags.split(',')
-    check_ports = node.get('check_ports')
-    if check_ports:
-        check_ports = check_ports.split(',')
-
-    service = node.cluster.dnsname
-    disks = node.disks
-    networks = node.networks
-    cpu = node.cpu
-    mem = node.mem
-
-    opts = generate_docker_opts(docker_opts, daemon)
-    limits = generate_resource_limits(cpu, mem)
-    volumes = generate_volume_opts(disks)
-
-    docker_pull = 'docker pull {image}'.format(image=container_image)
+    docker_pull = 'docker pull {image}'.format(image=node.container_image)
     utils.run(docker_pull)
 
     docker_run = 'docker run {limits} {opts} {volumes} -h {hostname} --name {name} {image}'.format(
-        hostname=nodename, name=container_name, opts=opts, limits=limits,
-        volumes=volumes, image=container_image)
+        hostname=node.nodename, name=node.container_name, opts=opts,
+        limits=limits, volumes=volumes, image=node.container_image)
     t = threading.Thread(target=utils.run, args=(docker_run,))
     t.daemon = True
     t.start()
 
     # Wait for container to start
-    utils.wait(container_name)
+    utils.wait(node.container_name)
 
-    net.configure(container_name, networks, instanceid)
-    servicediscovery.register(container_name, service, networks[0].address,
-                              tags=tags, port=port, check_ports=check_ports)
+    net.configure(node.container_name, node.networks, node.instanceid)
+    servicediscovery.register(node.container_name, node.service,
+                              node.networks[0].address, tags=node.tags,
+                              port=node.port, check_ports=node.check_ports)
 
-    node.id = container_name
+    node.id = node.container_name
     node.host = socket.gethostname()
 
     # We need to store the docker Name Space PID for later removal of the veth
@@ -141,13 +121,13 @@ def clean_pipework_devices(node):
     utils.run('rm -f "/var/run/netns/{}"'.format(nspid))
 
 
-def generate_volume_opts(volumes):
+def generate_volume_opts(disks):
     volume_opts = ''
-    for volume in volumes:
-        if not os.path.exists(volume.origin):
-            os.mkdir(volume.origin)
-        mode = volume.get('mode', 'rw')
-        volume_opts += '-v {}:{}:{} '.format(volume.origin, volume.destination, mode)
+    for volume in disks:
+        if not os.path.exists(volume['origin']):
+            os.mkdir(volume['origin'])
+        volume_opts += '-v {}:{}:{} '.format(
+            volume['origin'], volume['destination'], volume['mode'])
     return volume_opts
 
 

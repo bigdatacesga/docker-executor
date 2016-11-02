@@ -1,0 +1,6 @@
+networks:
+  - {device: eth0, type: static, address: 10.112.199.199, networkname: admin}
+  - {device: eth1, type: static, address: 10.117.199.199, networkname: storage}
+disks:
+  - {origin: /data/1, destination: /app, mode: rw}
+  - {origin: /data/2, destination: /database, mode: rw}

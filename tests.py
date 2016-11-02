@@ -1,11 +1,13 @@
 """Tests for docker-executor"""
 import unittest
 import kvstore
+from executor import config
 from executor import docker
-from executor.docker import Volume, Network
 from executor import net
-from executor import servicediscovery
+from executor import servicediscovery as sd
 from executor import utils
+import registry
+import consul
 
 
 ENDPOINT = 'http://10.112.0.101:8500/v1/kv'
@@ -25,8 +27,8 @@ class DockerTestCase(unittest.TestCase):
         self.kv.delete('__testingdockerexecutor__', recursive=True)
 
     def test_generate_volume_opts(self):
-        v1 = Volume('/tmp/origin1', '/data/1', 'rw')
-        v2 = Volume('/tmp/origin2', '/data/2', 'ro')
+        v1 = {'origin': '/tmp/origin1', 'destination': '/data/1', 'mode': 'rw'}
+        v2 = {'origin': '/tmp/origin2', 'destination': '/data/2', 'mode': 'ro'}
         volumes = [v1, v2]
         returned = docker.generate_volume_opts(volumes)
         expected = '-v /tmp/origin1:/data/1:rw -v /tmp/origin2:/data/2:ro '
@@ -46,15 +48,30 @@ class DockerTestCase(unittest.TestCase):
         expected = '{} {} -d '.format(common_opts, extra_opts)
         self.assertEqual(returned, expected)
 
-    def test_register_in_consul(self):
-        raise NotImplementedError
 
-    #def test_set_new_key_starting_with_slash(self):
-        #key = '/__testing__/testsetnew'
-        #value = '123456'
-        #self.kv.set(key, value)
-        #returned = self.kv.get(key)
-        #self.assertEqual(returned, value)
+class ServiceDiscovery(unittest.TestCase):
+
+    def setUp(self):
+        config.CONSUL_URL = 'http://10.112.0.101:8500'
+        self.consul = consul.Client(config.CONSUL_URL)
+
+    def tearDown(self):
+        self.consul.deregister('testingdockerexecutor-container1')
+
+    def test_register_in_service_discovery(self):
+        sd.register('testingdockerexecutor-container1',
+                    '__testingdockerexecutor__', '10.112.199.199')
+        returned = self.consul.info('__testingdockerexecutor__')
+        self.assertEqual(len(returned), 1)
+        self.assertEqual(returned[0]['ServiceID'], 'testingdockerexecutor-container1')
+        self.assertEqual(returned[0]['ServiceAddress'], '10.112.199.199')
+
+    def test_deregister_from_service_discovery(self):
+        sd.register('testingdockerexecutor-container1',
+                    '__testingdockerexecutor__', '10.112.199.199')
+        sd.deregister('testingdockerexecutor-container1')
+        returned = self.consul.info('__testingdockerexecutor__')
+        self.assertEqual(len(returned), 0)
 
 
 class NetTestCase(unittest.TestCase):
